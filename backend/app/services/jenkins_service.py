@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 import jenkins
 import structlog
 from fastapi import HTTPException
@@ -20,6 +20,7 @@ class JenkinsService:
                     username=settings.JENKINS_USERNAME, 
                     password=settings.JENKINS_PASSWORD
                 )
+            self.token = settings.JENKINS_API_TOKEN
             logger.info("Jenkins 服务初始化成功", url=settings.JENKINS_URL)
         except Exception as e:
             logger.error("Jenkins 服务初始化失败", error=str(e))
@@ -76,29 +77,18 @@ class JenkinsService:
             logger.error("获取任务详情失败", job_name=job_name, error=str(e))
             raise
     
-    def build_job(self, job_name: str, parameters: Dict[str, Any] = None) -> Optional[int]:
+    def build_job(self, job_name: str, parameters: Dict[str, Any] = None) -> int:
         """触发任务构建"""
         try:
-            logger.info("开始触发任务构建", job_name=job_name, parameters=parameters)
-            
-            # 检查任务是否支持参数化构建
-            job_info = self.get_job_info(job_name)
-            properties = job_info.get('property', [])
-            has_parameters = any(
-                prop.get('_class') == 'hudson.model.ParametersDefinitionProperty' 
-                for prop in properties
-            )
-            
-            # 根据任务是否支持参数化构建来决定调用方式
-            if has_parameters and parameters:
-                logger.info("使用参数化构建", job_name=job_name, parameters=parameters)
+            logger.info("开始触发任务构建", job_name=job_name, parameters=parameters, has_token=token is not None)
+            if parameters:
                 queue_id = self.server.build_job(job_name, parameters)
             else:
-                logger.info("使用简单构建（无参数）", job_name=job_name)
                 queue_id = self.server.build_job(job_name)
             
             logger.info("触发任务构建成功", job_name=job_name, queue_id=queue_id)
             return queue_id
+            
         except jenkins.NotFoundException:
             logger.warning("任务不存在", job_name=job_name)
             raise HTTPException(status_code=404, detail=f"任务 '{job_name}' 不存在")
@@ -126,15 +116,7 @@ class JenkinsService:
             raise
     
     def get_build_console_output(self, job_name: str, build_number: int) -> str:
-        """获取构建控制台输出
-        
-        根据官方文档：get_build_console_output(name, number)
-        Parameters:
-            job_name – Job name, str
-            build_number – Build number, str (also accepts int)
-        Returns:
-            Build console output, str
-        """
+        """获取构建控制台输出"""
         try:
             console_output = self.server.get_build_console_output(job_name, build_number)
             logger.info("获取构建控制台输出成功", job_name=job_name, build_number=build_number)
@@ -149,42 +131,18 @@ class JenkinsService:
             logger.error("获取构建控制台输出失败", job_name=job_name, build_number=build_number, error=str(e))
             raise
     
-    def wait_for_build_start(self, job_name: str, queue_id: int, timeout: int = 60) -> Optional[int]:
-        """等待构建开始并返回构建号"""
-        import time
-        
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            try:
-                # 检查队列状态
-                queue_info = self.server.get_queue_item(queue_id)
-                
-                if queue_info.get('executable'):
-                    build_number = queue_info['executable']['number']
-                    logger.info("构建已开始", job_name=job_name, build_number=build_number)
-                    return build_number
-                elif queue_info.get('cancelled'):
-                    logger.warning("构建被取消", job_name=job_name, queue_id=queue_id)
-                    return None
-                else:
-                    logger.debug("构建仍在队列中", job_name=job_name, queue_id=queue_id)
-                    time.sleep(2)
-                    
-            except Exception as e:
-                logger.error("检查队列状态时出错", job_name=job_name, queue_id=queue_id, error=str(e))
-                time.sleep(2)
-        
-        logger.warning("等待构建开始超时", job_name=job_name, queue_id=queue_id, timeout=timeout)
-        return None
-    
-    def is_build_running(self, job_name: str, build_number: int) -> bool:
-        """检查构建是否正在运行"""
+    def get_queue_item(self, queue_id: int) -> Dict[str, Any]:
+        """获取队列项信息"""
         try:
-            build_info = self.get_build_info(job_name, build_number)
-            return build_info.get('building', False)
+            queue_info = self.server.get_queue_item(queue_id)
+            logger.info("获取队列项信息成功", queue_id=queue_id)
+            return queue_info
+        except jenkins.NotFoundException:
+            logger.warning("队列项不存在", queue_id=queue_id)
+            raise HTTPException(status_code=404, detail=f"队列项 {queue_id} 不存在")
         except Exception as e:
-            logger.error("检查构建状态失败", job_name=job_name, build_number=build_number, error=str(e))
-            return False
+            logger.error("获取队列项信息失败", queue_id=queue_id, error=str(e))
+            raise
     
     def delete_job(self, job_name: str) -> None:
         """删除任务"""

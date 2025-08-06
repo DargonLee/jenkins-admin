@@ -1,12 +1,12 @@
 import { useEffect } from "react";
-import { useJenkins } from "./hooks/use-jenkins";
+import BuildInfoDisplay from "./components/build-info-display";
+import BuildStatusDisplay from "./components/build-status-display";
+import ConsoleOutputDisplay from "./components/console-output-display";
 import JenkinsHeader from "./components/jenkins-header";
-import RawDataDisplay from "./components/raw-data-display";
 import JobList from "./components/job-list";
 import OperationPanel from "./components/operation-panel";
-import BuildStatusDisplay from "./components/build-status-display";
-import BuildInfoDisplay from "./components/build-info-display";
-import ConsoleOutputDisplay from "./components/console-output-display";
+import RawDataDisplay from "./components/raw-data-display";
+import { useJenkins } from "./hooks/use-jenkins";
 
 export default function Jenkins() {
 	const {
@@ -73,7 +73,6 @@ export default function Jenkins() {
 					onBuildNumberChange={setBuildNumber}
 					onGetJobInfo={handleGetJobInfo}
 					onTriggerBuild={handleTriggerBuild}
-
 					onGetBuildInfo={handleGetBuildInfo}
 					onGetBuildStatus={handleGetBuildStatus}
 					onGetConsoleOutput={handleGetConsoleOutput}
