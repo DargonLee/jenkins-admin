@@ -16,9 +16,9 @@ class Settings(BaseSettings):
     
     # Jenkins 配置
     JENKINS_URL: str = Field(default="http://localhost:8080", description="Jenkins 服务器地址")
-    JENKINS_USERNAME: str = Field(default="admin", description="Jenkins 用户名")
-    JENKINS_PASSWORD: Optional[str] = Field(default=None, description="Jenkins 密码")
-    JENKINS_API_TOKEN: Optional[str] = Field(default=None, description="Jenkins API Token")
+    JENKINS_USERNAME: str = Field(default='admin', description="Jenkins 用户名")
+    JENKINS_PASSWORD: Optional[str] = Field(default='admin', description="Jenkins 密码")
+    JENKINS_API_TOKEN: Optional[str] = Field(default='2c979226facf44ad99359e0655563c9f', description="Jenkins API Token")
     
     # 日志配置
     LOG_LEVEL: str = Field(default="INFO", description="日志级别")

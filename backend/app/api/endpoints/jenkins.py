@@ -9,6 +9,39 @@ import structlog
 logger = structlog.get_logger("jenkins_api")
 router = APIRouter()
 
+@router.get("/test-connection")
+async def test_jenkins_connection():
+    """测试 Jenkins 连接"""
+    try:
+        jenkins = get_jenkins_service()
+        connection_info = jenkins.test_connection()
+        
+        if connection_info["connected"]:
+            return {
+                "status": "success",
+                "message": "Jenkins 连接测试成功",
+                "data": connection_info
+            }
+        else:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "status": "error",
+                    "message": "Jenkins 连接测试失败",
+                    "data": connection_info
+                }
+            )
+    except Exception as e:
+        logger.error("Jenkins 连接测试异常", error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "error",
+                "message": "Jenkins 连接测试异常",
+                "error": str(e)
+            }
+        )
+
 @router.get("/info")
 async def get_jenkins_info():
     """获取 Jenkins 服务器信息"""

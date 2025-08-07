@@ -10,22 +10,64 @@ class JenkinsService:
     """Jenkins 服务封装"""
     
     def __init__(self):
-        auth_token = settings.JENKINS_API_TOKEN or settings.JENKINS_PASSWORD
-        if not auth_token:
-            raise ValueError("必须提供 JENKINS_PASSWORD 或 JENKINS_API_TOKEN")
+        if not settings.JENKINS_USERNAME:
+            raise ValueError("必须提供 JENKINS_USERNAME")
+        
+        # 优先使用 API Token，如果没有则使用密码
+        auth_credential = settings.JENKINS_API_TOKEN or settings.JENKINS_PASSWORD
+        if not auth_credential:
+            raise ValueError("必须提供 JENKINS_API_TOKEN 或 JENKINS_PASSWORD")
         
         try:
             self.server = jenkins.Jenkins(
-                    settings.JENKINS_URL, 
-                    username=settings.JENKINS_USERNAME, 
-                    password=settings.JENKINS_PASSWORD
-                )
-            self.token = settings.JENKINS_API_TOKEN
-            logger.info("Jenkins 服务初始化成功", url=settings.JENKINS_URL)
+                settings.JENKINS_URL, 
+                username=settings.JENKINS_USERNAME, 
+                password=auth_credential
+            )
+            
+            # 测试连接
+            user_info = self.server.get_whoami()
+            logger.info(
+                "Jenkins 服务初始化成功", 
+                url=settings.JENKINS_URL,
+                username=settings.JENKINS_USERNAME,
+                authenticated_user=user_info.get('fullName', 'Unknown'),
+                auth_method="API Token" if settings.JENKINS_API_TOKEN else "Password"
+            )
         except Exception as e:
-            logger.error("Jenkins 服务初始化失败", error=str(e))
+            logger.error(
+                "Jenkins 服务初始化失败", 
+                url=settings.JENKINS_URL,
+                username=settings.JENKINS_USERNAME,
+                error=str(e)
+            )
             raise
     
+    def test_connection(self) -> Dict[str, Any]:
+        """测试 Jenkins 连接"""
+        try:
+            user_info = self.server.get_whoami()
+            version = self.server.get_version()
+            
+            result = {
+                "connected": True,
+                "user": user_info,
+                "version": version,
+                "url": settings.JENKINS_URL,
+                "auth_method": "API Token" if settings.JENKINS_API_TOKEN else "Password"
+            }
+            
+            logger.info("Jenkins 连接测试成功", **result)
+            return result
+            
+        except Exception as e:
+            logger.error("Jenkins 连接测试失败", error=str(e))
+            return {
+                "connected": False,
+                "error": str(e),
+                "url": settings.JENKINS_URL
+            }
+
     def get_server_user(self) -> str:
         """获取 Jenkins 服务器用户"""
         try:
@@ -33,6 +75,7 @@ class JenkinsService:
             return user
         except Exception as e:
             logger.error("获取 Jenkins 服务器用户失败", error=str(e))
+            raise
 
     def get_server_version(self) -> str:
         """获取 Jenkins 服务器版本"""
@@ -80,7 +123,7 @@ class JenkinsService:
     def build_job(self, job_name: str, parameters: Dict[str, Any] = None) -> int:
         """触发任务构建"""
         try:
-            logger.info("开始触发任务构建", job_name=job_name, parameters=parameters, has_token=token is not None)
+            logger.info("开始触发任务构建", job_name=job_name, parameters=parameters)
             if parameters:
                 queue_id = self.server.build_job(job_name, parameters)
             else:

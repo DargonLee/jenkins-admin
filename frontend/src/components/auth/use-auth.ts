@@ -20,7 +20,8 @@ import { useUserInfo, useUserToken } from "@/store/userStore";
  */
 export const useAuthCheck = (baseOn: "role" | "permission" = "permission") => {
 	const { accessToken } = useUserToken();
-	const { permissions = [], roles = [] } = useUserInfo();
+	const userInfo = useUserInfo();
+	const { permissions = [], roles = [] } = userInfo || {};
 
 	// depends on baseOn to select resource pool
 	const resourcePool = baseOn === "role" ? roles : permissions;
