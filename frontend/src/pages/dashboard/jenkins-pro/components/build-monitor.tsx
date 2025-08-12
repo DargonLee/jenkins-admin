@@ -3,17 +3,19 @@ import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { ScrollArea } from "@/ui/scroll-area";
 import { Progress } from "@/ui/progress";
-import { 
-	Clock, 
-	Activity, 
-	Play, 
-	Pause, 
-	Square, 
-	Eye, 
-	CheckCircle, 
-	XCircle, 
+import {
+	Clock,
+	Activity,
+	Play,
+	Pause,
+	Square,
+	Eye,
+	CheckCircle,
+	XCircle,
 	AlertTriangle,
-	Loader2
+	Loader2,
+	Smartphone,
+	Store
 } from "lucide-react";
 
 // 构建队列组件
@@ -206,34 +208,75 @@ export function BuildHistoryItem({
 
 	const config = statusConfig[status];
 
+	// 判断是否为iOS项目
+	const isIOSProject = (jobName: string): boolean => {
+		const iosKeywords = ['ios', 'iphone', 'ipad', 'mobile', 'app', 'swift', 'xcode'];
+		const lowerJobName = jobName.toLowerCase();
+		return iosKeywords.some(keyword => lowerJobName.includes(keyword));
+	};
+
+	const showIOSActions = isIOSProject(jobName) && status === "success";
+
 	return (
-		<div className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-			<div className="flex items-center gap-3">
-				<div className={`w-3 h-3 rounded-full ${config.color}`}></div>
-				<div className="flex-1">
-					<div className="flex items-center gap-2">
-						<p className="font-medium text-sm">{jobName} #{buildNumber}</p>
-						{config.icon}
+		<div className="p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+			<div className="flex items-center justify-between">
+				<div className="flex items-center gap-3">
+					<div className={`w-3 h-3 rounded-full ${config.color}`}></div>
+					<div className="flex-1">
+						<div className="flex items-center gap-2">
+							<p className="font-medium text-sm">{jobName} #{buildNumber}</p>
+							{config.icon}
+						</div>
+						<p className="text-xs text-muted-foreground">{timestamp}</p>
 					</div>
-					<p className="text-xs text-muted-foreground">{timestamp}</p>
+				</div>
+				<div className="flex items-center gap-3">
+					<div className="text-right">
+						<p className="text-xs text-muted-foreground">{duration}</p>
+						<Badge variant={config.badge} className="text-xs">
+							{status.toUpperCase()}
+						</Badge>
+					</div>
+					<div className="flex gap-1">
+						<Button variant="ghost" size="sm">
+							<Eye className="w-3 h-3" />
+						</Button>
+						<Button variant="ghost" size="sm">
+							<Play className="w-3 h-3" />
+						</Button>
+					</div>
 				</div>
 			</div>
-			<div className="flex items-center gap-3">
-				<div className="text-right">
-					<p className="text-xs text-muted-foreground">{duration}</p>
-					<Badge variant={config.badge} className="text-xs">
-						{status.toUpperCase()}
-					</Badge>
-				</div>
-				<div className="flex gap-1">
-					<Button variant="ghost" size="sm">
-						<Eye className="w-3 h-3" />
+
+			{/* iOS 发布按钮 */}
+			{showIOSActions && (
+				<div className="mt-3 pt-3 border-t flex gap-2">
+					<Button
+						size="sm"
+						variant="outline"
+						className="flex-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+						onClick={() => {
+							// TODO: 实现 TestFlight 发布逻辑
+							console.log(`发布 ${jobName} #${buildNumber} 到 TestFlight`);
+						}}
+					>
+						<Smartphone className="w-3 h-3 mr-1" />
+						发布到 TestFlight
 					</Button>
-					<Button variant="ghost" size="sm">
-						<Play className="w-3 h-3" />
+					<Button
+						size="sm"
+						variant="outline"
+						className="flex-1 text-purple-600 border-purple-200 hover:bg-purple-50"
+						onClick={() => {
+							// TODO: 实现 App Store 发布逻辑
+							console.log(`发布 ${jobName} #${buildNumber} 到 App Store`);
+						}}
+					>
+						<Store className="w-3 h-3 mr-1" />
+						发布到 App Store
 					</Button>
 				</div>
-			</div>
+			)}
 		</div>
 	);
 }

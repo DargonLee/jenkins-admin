@@ -16,7 +16,9 @@ import {
 	XCircle,
 	ArrowUp,
 	ArrowDown,
-	Minus
+	Minus,
+	Smartphone,
+	Store
 } from "lucide-react";
 
 // 统计卡片组件
@@ -196,6 +198,8 @@ export function QuickActions({ onAction }: {
 	const actions = [
 		{ id: "trigger-build", icon: <Play className="w-4 h-4" />, label: "触发构建", color: "default" },
 		{ id: "create-job", icon: <Settings className="w-4 h-4" />, label: "创建任务", color: "outline" },
+		{ id: "testflight-deploy", icon: <Smartphone className="w-4 h-4" />, label: "发布TestFlight", color: "outline", special: "ios" },
+		{ id: "appstore-deploy", icon: <Store className="w-4 h-4" />, label: "发布App Store", color: "outline", special: "ios" },
 		{ id: "manage-users", icon: <Users className="w-4 h-4" />, label: "用户管理", color: "outline" },
 		{ id: "manage-nodes", icon: <Server className="w-4 h-4" />, label: "节点管理", color: "outline" },
 		{ id: "view-logs", icon: <Eye className="w-4 h-4" />, label: "查看日志", color: "outline" },
@@ -214,15 +218,26 @@ export function QuickActions({ onAction }: {
 			<CardContent className="space-y-3">
 				{actions.map((action, index) => (
 					<div key={action.id}>
-						<Button 
-							className="w-full justify-start" 
+						<Button
+							className={`w-full justify-start ${
+								action.special === "ios"
+									? action.id === "testflight-deploy"
+										? "text-blue-600 border-blue-200 hover:bg-blue-50"
+										: "text-purple-600 border-purple-200 hover:bg-purple-50"
+									: ""
+							}`}
 							variant={action.color as any}
 							onClick={() => onAction?.(action.id)}
 						>
 							{action.icon}
 							<span className="ml-2">{action.label}</span>
+							{action.special === "ios" && (
+								<span className="ml-auto text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white px-2 py-1 rounded-full">
+									iOS
+								</span>
+							)}
 						</Button>
-						{index === 3 && <Separator className="my-3" />}
+						{index === 4 && <Separator className="my-3" />}
 					</div>
 				))}
 			</CardContent>
