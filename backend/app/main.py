@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.logging_config import setup_logging, logger
-from app.api.endpoints import jenkins
+from app.api.endpoints import jenkins, jenkins_pro
 from app.api.deps import get_jenkins_service
 
 # 在应用启动前配置好日志
@@ -47,6 +47,7 @@ def create_app() -> FastAPI:
 
     # 包含 API 路由
     app.include_router(jenkins.router, prefix="/jenkins", tags=["Jenkins"])
+    app.include_router(jenkins_pro.router, prefix="/jenkins-pro", tags=["Jenkins Pro"])
 
     # 定义根路径和健康检查
     @app.get("/", tags=["General"])
