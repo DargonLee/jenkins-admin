@@ -36,6 +36,7 @@ import { StatsCard, RecentActivity, QuickActions, BuildTrends } from "./componen
 import { BuildQueue, BuildHistory, RealTimeBuildMonitor } from "./components/build-monitor";
 import { PipelineVisualization } from "./components/pipeline-visualization";
 import { AlertCenter, AlertConfiguration } from "./components/alert-notification";
+import { ParameterizedBuildDialog } from "./components/parameterized-build-dialog";
 
 export default function JenkinsPro() {
 	const [activeTab, setActiveTab] = useState("dashboard");
@@ -61,7 +62,16 @@ export default function JenkinsPro() {
 		unreadAlerts,
 		alertConfig,
 		acknowledgeAlert,
-		updateAlertConfig
+		updateAlertConfig,
+		// 参数化构建相关
+		parameterizedBuildConfig,
+		showBuildDialog,
+		buildParameterValues,
+		triggerParameterizedBuild,
+		updateBuildParameterValue,
+		resetBuildParameters,
+		openBuildDialog,
+		closeBuildDialog
 	} = useJenkinsPro();
 
 	// 错误自动清除
@@ -172,6 +182,7 @@ export default function JenkinsPro() {
 							onSearchChange={setSearchQuery}
 							onStatusFilterChange={setStatusFilter}
 							onTriggerBuild={triggerBuild}
+							onParameterizedBuild={openBuildDialog}
 							loading={loading}
 						/>
 					</TabsContent>
@@ -211,6 +222,23 @@ export default function JenkinsPro() {
 					</TabsContent>
 				</Tabs>
 			</div>
+
+			{/* 参数化构建对话框 */}
+			{showBuildDialog && (
+				<ParameterizedBuildDialog
+					config={parameterizedBuildConfig}
+					parameterValues={buildParameterValues}
+					loading={loading.parameterizedBuild}
+					onUpdateValue={updateBuildParameterValue}
+					onReset={resetBuildParameters}
+					onTriggerBuild={() => {
+						if (parameterizedBuildConfig) {
+							triggerParameterizedBuild(parameterizedBuildConfig.jobName, buildParameterValues);
+						}
+					}}
+					onClose={closeBuildDialog}
+				/>
+			)}
 		</div>
 	);
 }
@@ -275,6 +303,7 @@ function JobsView({
 	onSearchChange,
 	onStatusFilterChange,
 	onTriggerBuild,
+	onParameterizedBuild,
 	loading
 }: {
 	jobs: any[];
@@ -283,6 +312,7 @@ function JobsView({
 	onSearchChange: (query: string) => void;
 	onStatusFilterChange: (filter: string) => void;
 	onTriggerBuild: (jobName: string) => void;
+	onParameterizedBuild: (jobName: string) => void;
 	loading: Record<string, boolean>;
 }) {
 	return (
@@ -340,6 +370,7 @@ function JobsView({
 							duration={job.lastBuildDuration || "未知"}
 							description={job.description || `${job.name} 构建任务`}
 							onTriggerBuild={() => onTriggerBuild(job.fullname)}
+							onParameterizedBuild={() => onParameterizedBuild(job.fullname)}
 							loading={loading.build}
 							isIOSProject={isIOSProject(job.name)}
 						/>
@@ -668,13 +699,14 @@ function SystemView() {
 
 // Helper Components
 
-function JobCard({ name, status, lastBuild, duration, description, onTriggerBuild, loading, isIOSProject }: {
+function JobCard({ name, status, lastBuild, duration, description, onTriggerBuild, onParameterizedBuild, loading, isIOSProject }: {
 	name: string;
 	status: "success" | "failed" | "running" | "unstable";
 	lastBuild: string;
 	duration: string;
 	description: string;
 	onTriggerBuild?: () => void;
+	onParameterizedBuild?: () => void;
 	loading?: boolean;
 	isIOSProject?: boolean;
 }) {
@@ -731,11 +763,25 @@ function JobCard({ name, status, lastBuild, duration, description, onTriggerBuil
 							) : (
 								<Play className="w-3 h-3 mr-1" />
 							)}
-							{status === "running" ? "运行中" : "构建"}
+							{status === "running" ? "运行中" : "快速构建"}
 						</Button>
 						<Button size="sm" variant="outline" className="flex-1">
 							<Eye className="w-3 h-3 mr-1" />
 							查看
+						</Button>
+					</div>
+
+					{/* 参数化构建按钮 */}
+					<div className="flex gap-2">
+						<Button
+							size="sm"
+							variant="default"
+							className="flex-1"
+							onClick={onParameterizedBuild}
+							disabled={loading || status === "running"}
+						>
+							<Settings className="w-3 h-3 mr-1" />
+							参数化构建
 						</Button>
 					</div>
 

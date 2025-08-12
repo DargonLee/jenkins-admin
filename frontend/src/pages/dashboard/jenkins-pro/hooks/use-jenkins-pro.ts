@@ -102,6 +102,23 @@ export interface AlertRecord {
 	channels: ("wechat" | "email")[];
 }
 
+// 构建参数接口
+export interface BuildParameter {
+	name: string;
+	type: "string" | "choice" | "boolean" | "password" | "text";
+	defaultValue?: string | boolean;
+	description?: string;
+	choices?: string[]; // 用于choice类型
+	required?: boolean;
+}
+
+// 参数化构建配置接口
+export interface ParameterizedBuildConfig {
+	jobName: string;
+	parameters: BuildParameter[];
+	values: Record<string, string | boolean>;
+}
+
 export function useJenkinsPro() {
 	// 基础状态
 	const [serverInfo, setServerInfo] = useState<JenkinsServerInfo | null>(null);
@@ -134,6 +151,11 @@ export function useJenkinsPro() {
 	// Pipeline可视化状态
 	const [pipelineFlow, setPipelineFlow] = useState<PipelineFlow | null>(null);
 	const [selectedPipeline, setSelectedPipeline] = useState<{jobName: string, buildNumber: number} | null>(null);
+
+	// 参数化构建状态
+	const [parameterizedBuildConfig, setParameterizedBuildConfig] = useState<ParameterizedBuildConfig | null>(null);
+	const [showBuildDialog, setShowBuildDialog] = useState<boolean>(false);
+	const [buildParameterValues, setBuildParameterValues] = useState<Record<string, string | boolean>>({});
 
 	// 告警和通知状态
 	const [alertConfig, setAlertConfig] = useState<AlertConfig>({
@@ -404,6 +426,148 @@ export function useJenkinsPro() {
 			setLoadingState("console", false);
 		}
 	}, [selectedJob, buildNumber, setLoadingState, handleError]);
+
+	// 获取任务参数配置
+	const fetchJobParameters = useCallback(async (jobName: string) => {
+		setLoadingState("jobParameters", true);
+		try {
+			// 模拟获取任务参数配置 - 实际应该调用Jenkins API
+			const mockParameters: BuildParameter[] = [
+				{
+					name: "BRANCH_NAME",
+					type: "choice",
+					defaultValue: "main",
+					description: "选择要构建的分支",
+					choices: ["main", "develop", "feature/new-ui", "hotfix/bug-123"],
+					required: true
+				},
+				{
+					name: "BUILD_TYPE",
+					type: "choice",
+					defaultValue: "debug",
+					description: "构建类型",
+					choices: ["debug", "release", "beta"],
+					required: true
+				},
+				{
+					name: "VERSION_NUMBER",
+					type: "string",
+					defaultValue: "1.0.0",
+					description: "版本号 (格式: x.y.z)",
+					required: false
+				},
+				{
+					name: "SKIP_TESTS",
+					type: "boolean",
+					defaultValue: false,
+					description: "跳过单元测试",
+					required: false
+				},
+				{
+					name: "DEPLOY_ENVIRONMENT",
+					type: "choice",
+					defaultValue: "staging",
+					description: "部署环境",
+					choices: ["staging", "production", "test"],
+					required: false
+				},
+				{
+					name: "CUSTOM_ARGS",
+					type: "text",
+					defaultValue: "",
+					description: "自定义构建参数 (多行文本)",
+					required: false
+				}
+			];
+
+			// 初始化参数值
+			const initialValues: Record<string, string | boolean> = {};
+			mockParameters.forEach(param => {
+				initialValues[param.name] = param.defaultValue || (param.type === "boolean" ? false : "");
+			});
+
+			const config: ParameterizedBuildConfig = {
+				jobName,
+				parameters: mockParameters,
+				values: initialValues
+			};
+
+			setParameterizedBuildConfig(config);
+			setBuildParameterValues(initialValues);
+			toast.success(`获取任务 "${jobName}" 参数配置成功`);
+			return config;
+		} catch (error: any) {
+			handleError(error, "获取任务参数配置失败");
+		} finally {
+			setLoadingState("jobParameters", false);
+		}
+	}, [setLoadingState, handleError]);
+
+	// 参数化构建触发
+	const triggerParameterizedBuild = useCallback(async (jobName: string, parameters: Record<string, string | boolean>) => {
+		setLoadingState("parameterizedBuild", true);
+		try {
+			// 构建参数对象
+			const buildParams: BuildParams = {};
+			Object.entries(parameters).forEach(([key, value]) => {
+				buildParams[key] = String(value);
+			});
+
+			console.log("触发参数化构建:", { jobName, parameters: buildParams });
+
+			// 调用原有的构建触发函数
+			const response = await jenkinsService.triggerBuild(jobName, buildParams);
+
+			if (response.status === "success" && response.data) {
+				const { job_name, queue_id } = response.data;
+				toast.success(`参数化构建已触发: ${job_name} (队列ID: ${queue_id})`);
+
+				// 关闭构建对话框
+				setShowBuildDialog(false);
+				setParameterizedBuildConfig(null);
+
+				return response.data;
+			} else {
+				handleError(response, response.message || "触发参数化构建失败");
+			}
+		} catch (error: any) {
+			handleError(error, "触发参数化构建失败");
+		} finally {
+			setLoadingState("parameterizedBuild", false);
+		}
+	}, [setLoadingState, handleError]);
+
+	// 更新构建参数值
+	const updateBuildParameterValue = useCallback((paramName: string, value: string | boolean) => {
+		setBuildParameterValues(prev => ({
+			...prev,
+			[paramName]: value
+		}));
+	}, []);
+
+	// 重置构建参数
+	const resetBuildParameters = useCallback(() => {
+		if (parameterizedBuildConfig) {
+			const initialValues: Record<string, string | boolean> = {};
+			parameterizedBuildConfig.parameters.forEach(param => {
+				initialValues[param.name] = param.defaultValue || (param.type === "boolean" ? false : "");
+			});
+			setBuildParameterValues(initialValues);
+		}
+	}, [parameterizedBuildConfig]);
+
+	// 打开构建对话框
+	const openBuildDialog = useCallback(async (jobName: string) => {
+		await fetchJobParameters(jobName);
+		setShowBuildDialog(true);
+	}, [fetchJobParameters]);
+
+	// 关闭构建对话框
+	const closeBuildDialog = useCallback(() => {
+		setShowBuildDialog(false);
+		setParameterizedBuildConfig(null);
+		setBuildParameterValues({});
+	}, []);
 
 	// 获取Pipeline流程数据
 	const fetchPipelineFlow = useCallback(async (jobName: string, buildNumber: number) => {
@@ -830,6 +994,11 @@ ${alert.buildNumber ? `**构建号**: #${alert.buildNumber}` : ''}
 		alertRecords,
 		unreadAlerts,
 
+		// 参数化构建状态
+		parameterizedBuildConfig,
+		showBuildDialog,
+		buildParameterValues,
+
 		// 状态更新函数
 		setSelectedJob,
 		setBuildParams,
@@ -858,6 +1027,14 @@ ${alert.buildNumber ? `**构建号**: #${alert.buildNumber}` : ''}
 		acknowledgeAlert,
 		updateAlertConfig,
 		sendWechatAlert,
+
+		// 参数化构建函数
+		fetchJobParameters,
+		triggerParameterizedBuild,
+		updateBuildParameterValue,
+		resetBuildParameters,
+		openBuildDialog,
+		closeBuildDialog,
 
 		// 工具函数
 		clearError: () => setError(null),

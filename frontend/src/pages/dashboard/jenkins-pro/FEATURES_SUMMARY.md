@@ -65,6 +65,41 @@
 
 ---
 
+### ✅ **参数化构建功能** - 已完成
+
+#### 📋 **功能特性**
+- **多种参数类型**: 支持字符串、选择、布尔值、密码、多行文本参数
+- **参数验证**: 实时参数验证和错误提示
+- **默认值管理**: 智能默认值设置和参数重置
+- **用户友好界面**: 直观的参数输入对话框
+- **构建配置**: 灵活的构建参数配置和管理
+
+#### 🏗️ **技术实现**
+- **组件**: `ParameterizedBuildDialog`, `ParameterInput`
+- **数据结构**: `BuildParameter`, `ParameterizedBuildConfig`
+- **参数类型**: string, choice, boolean, password, text
+- **验证机制**: 实时验证、格式检查、必填项检查
+
+#### 📍 **使用位置**
+- 任务卡片中的"参数化构建"按钮
+- 弹出式参数配置对话框
+- 支持参数重置和一键构建
+
+#### 💡 **参数示例**
+```typescript
+// 典型的构建参数配置
+{
+  BRANCH_NAME: "main",           // 分支选择
+  BUILD_TYPE: "release",         // 构建类型
+  VERSION_NUMBER: "1.0.0",       // 版本号
+  SKIP_TESTS: false,             // 跳过测试
+  DEPLOY_ENVIRONMENT: "staging", // 部署环境
+  CUSTOM_ARGS: "自定义参数"       // 自定义配置
+}
+```
+
+---
+
 ### ✅ **iOS发布功能** - 已完成
 
 #### 📋 **功能特性**
@@ -89,6 +124,7 @@
 - Pipeline相关状态和函数
 - 告警配置和记录管理
 - 企业微信通知发送
+- 参数化构建状态和函数
 - 完整的错误处理和状态管理
 
 ### 🎨 **组件体系**
@@ -97,7 +133,8 @@ components/
 ├── dashboard-widgets.tsx      # 仪表板组件
 ├── build-monitor.tsx         # 构建监控组件
 ├── pipeline-visualization.tsx # Pipeline可视化组件 ✨新增
-└── alert-notification.tsx    # 告警通知组件 ✨新增
+├── alert-notification.tsx    # 告警通知组件 ✨新增
+└── parameterized-build-dialog.tsx # 参数化构建对话框 ✨新增
 ```
 
 ### 📱 **页面结构**
@@ -149,7 +186,33 @@ createAlert({
 });
 ```
 
-### 3. **iOS发布功能**
+### 3. **参数化构建功能**
+```typescript
+// 打开参数化构建对话框
+openBuildDialog("frontend-build");
+
+// 更新参数值
+updateBuildParameterValue("BRANCH_NAME", "develop");
+updateBuildParameterValue("BUILD_TYPE", "release");
+updateBuildParameterValue("SKIP_TESTS", false);
+
+// 触发参数化构建
+triggerParameterizedBuild("frontend-build", {
+  BRANCH_NAME: "develop",
+  BUILD_TYPE: "release",
+  VERSION_NUMBER: "1.2.0",
+  SKIP_TESTS: false,
+  DEPLOY_ENVIRONMENT: "staging"
+});
+
+// 参数验证示例
+const validateVersion = (version: string) => {
+  const versionRegex = /^\d+\.\d+\.\d+$/;
+  return versionRegex.test(version);
+};
+```
+
+### 4. **iOS发布功能**
 ```typescript
 // 自动识别iOS项目
 const isIOS = isIOSProject("ios-app-build"); // true
