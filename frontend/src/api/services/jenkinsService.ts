@@ -137,20 +137,186 @@ export interface ConsoleOutput {
 	output_length: number;
 }
 
+// Pipeline阶段接口
+export interface PipelineStageInfo {
+	id: string;
+	name: string;
+	status: "SUCCESS" | "FAILED" | "IN_PROGRESS" | "NOT_EXECUTED" | "ABORTED" | "UNSTABLE";
+	startTimeMillis?: number;
+	durationMillis?: number;
+	pauseDurationMillis?: number;
+	stageFlowNodes?: Array<{
+		id: string;
+		name: string;
+		status: string;
+		startTimeMillis: number;
+		durationMillis: number;
+		log?: string;
+	}>;
+}
+
+// Pipeline运行信息接口
+export interface PipelineRunInfo {
+	id: string;
+	name: string;
+	status: "SUCCESS" | "FAILED" | "IN_PROGRESS" | "NOT_EXECUTED" | "ABORTED";
+	startTimeMillis: number;
+	endTimeMillis?: number;
+	durationMillis: number;
+	estimatedDurationMillis?: number;
+	stages: PipelineStageInfo[];
+}
+
+// 构建队列项接口
+export interface QueueItem {
+	id: number;
+	task: {
+		name: string;
+		url: string;
+		color: string;
+	};
+	stuck: boolean;
+	blocked: boolean;
+	buildable: boolean;
+	pending: boolean;
+	inQueueSince: number;
+	params?: string;
+	why?: string;
+	buildableStartMilliseconds?: number;
+}
+
+// 构建队列响应接口
+export interface BuildQueueResponse {
+	items: QueueItem[];
+}
+
+// Jenkins节点信息接口
+export interface JenkinsNode {
+	displayName: string;
+	description: string;
+	numExecutors: number;
+	mode: string;
+	offline: boolean;
+	temporarilyOffline: boolean;
+	offlineCause?: {
+		description: string;
+	};
+	oneOffExecutors: Array<any>;
+	monitorData: {
+		"hudson.node_monitors.SwapSpaceMonitor"?: {
+			availableSwapSpace: number;
+			totalSwapSpace: number;
+		};
+		"hudson.node_monitors.TemporarySpaceMonitor"?: {
+			size: number;
+		};
+		"hudson.node_monitors.DiskSpaceMonitor"?: {
+			size: number;
+		};
+		"hudson.node_monitors.ArchitectureMonitor"?: string;
+		"hudson.node_monitors.ResponseTimeMonitor"?: {
+			average: number;
+		};
+		"hudson.node_monitors.ClockMonitor"?: {
+			diff: number;
+		};
+	};
+}
+
+// 任务参数定义接口
+export interface JobParameterDefinition {
+	name: string;
+	type: string;
+	description?: string;
+	defaultParameterValue?: {
+		value: string | boolean;
+	};
+	choices?: string[];
+}
+
+// 任务配置信息接口
+export interface JobConfigInfo {
+	name: string;
+	displayName: string;
+	description: string;
+	buildable: boolean;
+	parameterDefinitions?: JobParameterDefinition[];
+	scm?: {
+		branches: Array<{
+			name: string;
+		}>;
+		userRemoteConfigs: Array<{
+			url: string;
+		}>;
+	};
+}
+
+// 系统信息接口
+export interface SystemInfo {
+	systemProperties: Record<string, string>;
+	environmentVariables: Record<string, string>;
+}
+
+// 插件信息接口
+export interface PluginInfo {
+	shortName: string;
+	longName: string;
+	version: string;
+	enabled: boolean;
+	active: boolean;
+	hasUpdate: boolean;
+	url?: string;
+}
+
 // Jenkins API 端点枚举
 export enum JenkinsApi {
 	// 基础信息
 	Info = "/jenkins/info",
 	Jobs = "/jenkins/jobs",
+	Queue = "/jenkins/queue",
+	Nodes = "/jenkins/computer",
+	SystemInfo = "/jenkins/systemInfo",
+	Plugins = "/jenkins/pluginManager/plugins",
 
 	// 任务相关
 	JobInfo = "/jenkins/job/{jobName}",
+	JobConfig = "/jenkins/job/{jobName}/config",
+	JobParameters = "/jenkins/job/{jobName}/api/json?tree=property[parameterDefinitions[name,type,description,defaultParameterValue,choices]]",
+	JobBuilds = "/jenkins/job/{jobName}/api/json?tree=builds[number,timestamp,result,duration,building]",
+	JobLastBuild = "/jenkins/job/{jobName}/lastBuild/api/json",
+	JobCreate = "/jenkins/createItem",
+	JobDelete = "/jenkins/job/{jobName}/doDelete",
+	JobEnable = "/jenkins/job/{jobName}/enable",
+	JobDisable = "/jenkins/job/{jobName}/disable",
 
 	// 构建相关
 	Build = "/jenkins/build/{jobName}",
 	BuildInfo = "/jenkins/build/{jobName}/{buildNumber}",
 	BuildConsole = "/jenkins/build/{jobName}/{buildNumber}/console",
 	BuildStatus = "/jenkins/build/{jobName}/{buildNumber}/status",
+	BuildStop = "/jenkins/build/{jobName}/{buildNumber}/stop",
+	BuildReplay = "/jenkins/build/{jobName}/{buildNumber}/replay",
+
+	// Pipeline相关
+	PipelineRun = "/jenkins/job/{jobName}/{buildNumber}/wfapi/describe",
+	PipelineStages = "/jenkins/job/{jobName}/{buildNumber}/execution/node/{nodeId}/wfapi/log",
+	PipelineLog = "/jenkins/job/{jobName}/{buildNumber}/wfapi/log",
+
+	// 节点管理
+	NodeInfo = "/jenkins/computer/{nodeName}",
+	NodeOnline = "/jenkins/computer/{nodeName}/toggleOffline",
+	NodeDelete = "/jenkins/computer/{nodeName}/doDelete",
+
+	// 用户管理
+	Users = "/jenkins/people",
+	UserInfo = "/jenkins/user/{username}",
+	CurrentUser = "/jenkins/me",
+
+	// 视图管理
+	Views = "/jenkins/api/json?tree=views[name,url]",
+	ViewInfo = "/jenkins/view/{viewName}",
+	ViewCreate = "/jenkins/createView",
+	ViewDelete = "/jenkins/view/{viewName}/doDelete",
 }
 
 // 获取 Jenkins 服务器信息
@@ -198,7 +364,117 @@ const getBuildStatus = (jobName: string, buildNumber: number) =>
 		url: JenkinsApi.BuildStatus.replace("{jobName}", jobName).replace("{buildNumber}", buildNumber.toString()),
 	});
 
+// ==================== 新增API函数 ====================
+
+// 获取构建队列
+const getBuildQueue = () =>
+	apiClient.get<ApiResponse<BuildQueueResponse>>({
+		url: JenkinsApi.Queue,
+	});
+
+// 获取任务参数定义
+const getJobParameters = (jobName: string) =>
+	apiClient.get<ApiResponse<JobConfigInfo>>({
+		url: JenkinsApi.JobParameters.replace("{jobName}", jobName),
+	});
+
+// 获取任务构建历史
+const getJobBuilds = (jobName: string, limit: number = 10) =>
+	apiClient.get<ApiResponse<{ builds: JenkinsBuild[] }>>({
+		url: JenkinsApi.JobBuilds.replace("{jobName}", jobName),
+		params: { limit },
+	});
+
+// 获取Pipeline运行信息
+const getPipelineRun = (jobName: string, buildNumber: number) =>
+	apiClient.get<ApiResponse<PipelineRunInfo>>({
+		url: JenkinsApi.PipelineRun.replace("{jobName}", jobName).replace("{buildNumber}", buildNumber.toString()),
+	});
+
+// 获取Pipeline日志
+const getPipelineLog = (jobName: string, buildNumber: number) =>
+	apiClient.get<ApiResponse<{ text: string }>>({
+		url: JenkinsApi.PipelineLog.replace("{jobName}", jobName).replace("{buildNumber}", buildNumber.toString()),
+	});
+
+// 停止构建
+const stopBuild = (jobName: string, buildNumber: number) =>
+	apiClient.post<ApiResponse<{ message: string }>>({
+		url: JenkinsApi.BuildStop.replace("{jobName}", jobName).replace("{buildNumber}", buildNumber.toString()),
+	});
+
+// 获取所有节点信息
+const getNodes = () =>
+	apiClient.get<ApiResponse<{ computer: JenkinsNode[] }>>({
+		url: JenkinsApi.Nodes,
+	});
+
+// 获取特定节点信息
+const getNodeInfo = (nodeName: string) =>
+	apiClient.get<ApiResponse<JenkinsNode>>({
+		url: JenkinsApi.NodeInfo.replace("{nodeName}", nodeName),
+	});
+
+// 切换节点在线/离线状态
+const toggleNodeOffline = (nodeName: string, offlineMessage?: string) =>
+	apiClient.post<ApiResponse<{ message: string }>>({
+		url: JenkinsApi.NodeOnline.replace("{nodeName}", nodeName),
+		data: { offlineMessage },
+	});
+
+// 获取系统信息
+const getSystemInfo = () =>
+	apiClient.get<ApiResponse<SystemInfo>>({
+		url: JenkinsApi.SystemInfo,
+	});
+
+// 获取插件信息
+const getPlugins = () =>
+	apiClient.get<ApiResponse<{ plugins: PluginInfo[] }>>({
+		url: JenkinsApi.Plugins,
+	});
+
+// 创建任务
+const createJob = (jobName: string, configXml: string) =>
+	apiClient.post<ApiResponse<{ message: string }>>({
+		url: JenkinsApi.JobCreate,
+		params: { name: jobName },
+		data: configXml,
+		headers: { 'Content-Type': 'application/xml' },
+	});
+
+// 删除任务
+const deleteJob = (jobName: string) =>
+	apiClient.post<ApiResponse<{ message: string }>>({
+		url: JenkinsApi.JobDelete.replace("{jobName}", jobName),
+	});
+
+// 启用任务
+const enableJob = (jobName: string) =>
+	apiClient.post<ApiResponse<{ message: string }>>({
+		url: JenkinsApi.JobEnable.replace("{jobName}", jobName),
+	});
+
+// 禁用任务
+const disableJob = (jobName: string) =>
+	apiClient.post<ApiResponse<{ message: string }>>({
+		url: JenkinsApi.JobDisable.replace("{jobName}", jobName),
+	});
+
+// 获取当前用户信息
+const getCurrentUser = () =>
+	apiClient.get<ApiResponse<{ id: string; fullName: string; description: string }>>({
+		url: JenkinsApi.CurrentUser,
+	});
+
+// 获取所有用户
+const getUsers = () =>
+	apiClient.get<ApiResponse<{ users: Array<{ user: { id: string; fullName: string } }> }>>({
+		url: JenkinsApi.Users,
+	});
+
 export default {
+	// 原有API
 	getServerInfo,
 	getJobs,
 	getJobInfo,
@@ -206,4 +482,33 @@ export default {
 	getBuildInfo,
 	getBuildConsole,
 	getBuildStatus,
+
+	// 新增API - 构建和队列管理
+	getBuildQueue,
+	getJobBuilds,
+	stopBuild,
+
+	// 新增API - Pipeline相关
+	getPipelineRun,
+	getPipelineLog,
+
+	// 新增API - 任务管理
+	getJobParameters,
+	createJob,
+	deleteJob,
+	enableJob,
+	disableJob,
+
+	// 新增API - 节点管理
+	getNodes,
+	getNodeInfo,
+	toggleNodeOffline,
+
+	// 新增API - 系统信息
+	getSystemInfo,
+	getPlugins,
+
+	// 新增API - 用户管理
+	getCurrentUser,
+	getUsers,
 };
