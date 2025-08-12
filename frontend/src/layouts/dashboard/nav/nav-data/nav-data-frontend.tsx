@@ -21,6 +21,11 @@ export const frontendNavData: NavProps["data"] = [
 				path: "/jenkins",
 				icon: <Icon icon="local:ic-analysis" size="24" />,
 			},
+			{
+				title: "Jenkins-Pro",
+				path: "/jenkins-pro",
+				icon: <Icon icon="local:ic-analysis" size="24" />,
+			},
 		],
 	},
 	{

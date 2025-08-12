@@ -1,7 +1,7 @@
 // import { GLOBAL_CONFIG } from "@/global-config";
 // import { t } from "@/locales/i18n";
 // import userStore from "@/store/userStore";
-import axios, { type AxiosRequestConfig, type AxiosError, type AxiosResponse } from "axios";
+import axios, { type AxiosRequestConfig, type AxiosResponse } from "axios";
 // import { toast } from "sonner";
 // import type { Result } from "#/api";
 // import { ResultStuts } from "#/enum";

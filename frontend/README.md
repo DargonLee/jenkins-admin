@@ -92,7 +92,7 @@ server: {
 - [React](https://reactjs.org/) - 用户界面库
 - [Vite](https://vitejs.dev/) - 构建工具
 - [Slash-Admin](https://github.com/d3george/slash-admin)
-
+  https://docs-admin.slashspaces.com/docs/development/permission
 ---
 
 **Jenkins Admin Frontend** - 让 Jenkins 管理变得简单而优雅 🚀
