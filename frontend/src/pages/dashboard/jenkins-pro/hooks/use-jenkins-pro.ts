@@ -49,6 +49,59 @@ export interface SystemStats {
 	};
 }
 
+// Pipeline阶段接口
+export interface PipelineStage {
+	id: string;
+	name: string;
+	status: "success" | "failed" | "running" | "pending" | "skipped" | "aborted";
+	startTime?: string;
+	duration?: number;
+	estimatedDuration?: number;
+	logs?: string[];
+	error?: string;
+}
+
+// Pipeline流程接口
+export interface PipelineFlow {
+	jobName: string;
+	buildNumber: number;
+	stages: PipelineStage[];
+	totalDuration: number;
+	status: "success" | "failed" | "running" | "aborted";
+	startTime: string;
+	endTime?: string;
+}
+
+// 告警配置接口
+export interface AlertConfig {
+	enabled: boolean;
+	buildFailureAlert: boolean;
+	longRunningBuildAlert: boolean;
+	resourceThresholdAlert: boolean;
+	successRateAlert: boolean;
+	wechatWebhook?: string;
+	emailNotification?: string[];
+	alertThresholds: {
+		buildTimeThreshold: number; // 分钟
+		successRateThreshold: number; // 百分比
+		resourceUsageThreshold: number; // 百分比
+	};
+}
+
+// 告警记录接口
+export interface AlertRecord {
+	id: string;
+	type: "build_failure" | "long_running" | "resource_threshold" | "success_rate";
+	severity: "low" | "medium" | "high" | "critical";
+	title: string;
+	message: string;
+	jobName?: string;
+	buildNumber?: number;
+	timestamp: string;
+	acknowledged: boolean;
+	channels: ("wechat" | "email")[];
+}
+
 export function useJenkinsPro() {
 	// 基础状态
 	const [serverInfo, setServerInfo] = useState<JenkinsServerInfo | null>(null);
@@ -77,6 +130,53 @@ export function useJenkinsPro() {
 		queueLength: 0,
 		executors: { total: 0, busy: 0 }
 	});
+
+	// Pipeline可视化状态
+	const [pipelineFlow, setPipelineFlow] = useState<PipelineFlow | null>(null);
+	const [selectedPipeline, setSelectedPipeline] = useState<{jobName: string, buildNumber: number} | null>(null);
+
+	// 告警和通知状态
+	const [alertConfig, setAlertConfig] = useState<AlertConfig>({
+		enabled: true,
+		buildFailureAlert: true,
+		longRunningBuildAlert: true,
+		resourceThresholdAlert: true,
+		successRateAlert: true,
+		wechatWebhook: "",
+		emailNotification: [],
+		alertThresholds: {
+			buildTimeThreshold: 30, // 30分钟
+			successRateThreshold: 80, // 80%
+			resourceUsageThreshold: 85 // 85%
+		}
+	});
+	const [alertRecords, setAlertRecords] = useState<AlertRecord[]>([
+		{
+			id: "alert_1",
+			type: "build_failure",
+			severity: "high",
+			title: "构建失败告警",
+			message: "任务 'frontend-build' 的构建 #145 执行失败，请检查构建日志并及时处理。",
+			jobName: "frontend-build",
+			buildNumber: 145,
+			timestamp: new Date(Date.now() - 300000).toISOString(),
+			acknowledged: false,
+			channels: ["wechat"]
+		},
+		{
+			id: "alert_2",
+			type: "long_running",
+			severity: "medium",
+			title: "构建超时告警",
+			message: "任务 'backend-test' 的构建 #89 已运行 35 分钟，超过阈值 30 分钟。",
+			jobName: "backend-test",
+			buildNumber: 89,
+			timestamp: new Date(Date.now() - 600000).toISOString(),
+			acknowledged: true,
+			channels: ["wechat"]
+		}
+	]);
+	const [unreadAlerts, setUnreadAlerts] = useState<number>(1);
 
 	// 搜索和过滤状态
 	const [searchQuery, setSearchQuery] = useState("");
@@ -305,6 +405,68 @@ export function useJenkinsPro() {
 		}
 	}, [selectedJob, buildNumber, setLoadingState, handleError]);
 
+	// 获取Pipeline流程数据
+	const fetchPipelineFlow = useCallback(async (jobName: string, buildNumber: number) => {
+		setLoadingState("pipeline", true);
+		try {
+			// 模拟Pipeline数据 - 实际应该调用Jenkins Pipeline API
+			const mockPipelineFlow: PipelineFlow = {
+				jobName,
+				buildNumber,
+				status: "running",
+				startTime: new Date().toISOString(),
+				totalDuration: 0,
+				stages: [
+					{
+						id: "checkout",
+						name: "Checkout",
+						status: "success",
+						startTime: new Date(Date.now() - 300000).toISOString(),
+						duration: 15000,
+						logs: ["Checking out from Git repository..."]
+					},
+					{
+						id: "build",
+						name: "Build",
+						status: "success",
+						startTime: new Date(Date.now() - 285000).toISOString(),
+						duration: 120000,
+						logs: ["Building application...", "Compiling sources..."]
+					},
+					{
+						id: "test",
+						name: "Test",
+						status: "running",
+						startTime: new Date(Date.now() - 165000).toISOString(),
+						estimatedDuration: 180000,
+						logs: ["Running unit tests...", "Running integration tests..."]
+					},
+					{
+						id: "package",
+						name: "Package",
+						status: "pending",
+						logs: []
+					},
+					{
+						id: "deploy",
+						name: "Deploy",
+						status: "pending",
+						logs: []
+					}
+				]
+			};
+
+			setPipelineFlow(mockPipelineFlow);
+			setSelectedPipeline({ jobName, buildNumber });
+			toast.success(`获取Pipeline流程成功: ${jobName} #${buildNumber}`);
+			return mockPipelineFlow;
+		} catch (error: any) {
+			handleError(error, "获取Pipeline流程失败");
+		} finally {
+			setLoadingState("pipeline", false);
+		}
+	}, [setLoadingState, handleError]);
+
 	// 获取构建队列（模拟数据）
 	const fetchBuildQueue = useCallback(async () => {
 		setLoadingState("buildQueue", true);
@@ -394,6 +556,98 @@ export function useJenkinsPro() {
 			setLoadingState("buildHistory", false);
 		}
 	}, [setLoadingState, handleError]);
+
+		// 发送企业微信告警
+		const sendWechatAlert = useCallback(async (alert: Omit<AlertRecord, 'id' | 'timestamp' | 'acknowledged'>) => {
+			if (!alertConfig.enabled || !alertConfig.wechatWebhook) {
+				return;
+			}
+
+			try {
+				// 构建企业微信消息格式
+				const wechatMessage = {
+					msgtype: "markdown",
+					markdown: {
+						content: `## 🚨 Jenkins 告警通知
+
+**告警类型**: ${alert.type}
+**严重程度**: ${alert.severity}
+**告警标题**: ${alert.title}
+
+**详细信息**:
+${alert.message}
+
+${alert.jobName ? `**任务名称**: ${alert.jobName}` : ''}
+${alert.buildNumber ? `**构建号**: #${alert.buildNumber}` : ''}
+
+**时间**: ${new Date().toLocaleString('zh-CN')}
+
+---
+> 请及时处理相关问题`
+					}
+				};
+
+				// 发送到企业微信
+				const response = await fetch(alertConfig.wechatWebhook, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify(wechatMessage)
+				});
+
+				if (response.ok) {
+					console.log('企业微信告警发送成功');
+					toast.success('告警通知已发送到企业微信');
+				} else {
+					console.error('企业微信告警发送失败:', response.statusText);
+					toast.error('企业微信告警发送失败');
+				}
+			} catch (error) {
+				console.error('发送企业微信告警失败:', error);
+				toast.error('发送企业微信告警失败');
+			}
+		}, [alertConfig]);
+
+		// 创建告警记录
+		const createAlert = useCallback(async (alertData: Omit<AlertRecord, 'id' | 'timestamp' | 'acknowledged'>) => {
+			const newAlert: AlertRecord = {
+				...alertData,
+				id: `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+				timestamp: new Date().toISOString(),
+				acknowledged: false
+			};
+
+			// 添加到告警记录
+			setAlertRecords(prev => [newAlert, ...prev]);
+			setUnreadAlerts(prev => prev + 1);
+
+			// 发送通知
+			if (alertData.channels.includes('wechat')) {
+				await sendWechatAlert(alertData);
+			}
+
+			return newAlert;
+		}, [sendWechatAlert]);
+
+		// 确认告警
+		const acknowledgeAlert = useCallback((alertId: string) => {
+			setAlertRecords(prev =>
+				prev.map(alert =>
+					alert.id === alertId
+						? { ...alert, acknowledged: true }
+						: alert
+				)
+			);
+			setUnreadAlerts(prev => Math.max(0, prev - 1));
+			toast.success('告警已确认');
+		}, []);
+
+		// 更新告警配置
+		const updateAlertConfig = useCallback((newConfig: Partial<AlertConfig>) => {
+			setAlertConfig(prev => ({ ...prev, ...newConfig }));
+			toast.success('告警配置已更新');
+		}, []);
 
 	// 查找最新构建号
 	const findLatestBuildNumber = useCallback(async (jobName: string) => {
@@ -567,6 +821,15 @@ export function useJenkinsPro() {
 		isRealTimeBuilding,
 		realTimeBuildNumber,
 
+		// Pipeline 状态
+		pipelineFlow,
+		selectedPipeline,
+
+		// 告警状态
+		alertConfig,
+		alertRecords,
+		unreadAlerts,
+
 		// 状态更新函数
 		setSelectedJob,
 		setBuildParams,
@@ -586,6 +849,15 @@ export function useJenkinsPro() {
 		fetchBuildHistory,
 		triggerRealTimeBuild,
 		stopRealTimeMonitoring,
+
+		// Pipeline 函数
+		fetchPipelineFlow,
+
+		// 告警函数
+		createAlert,
+		acknowledgeAlert,
+		updateAlertConfig,
+		sendWechatAlert,
 
 		// 工具函数
 		clearError: () => setError(null),

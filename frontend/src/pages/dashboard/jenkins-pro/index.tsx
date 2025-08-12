@@ -27,11 +27,15 @@ import {
 	Loader2,
 	AlertCircle,
 	Smartphone,
-	Store
+	Store,
+	GitBranch,
+	Bell
 } from "lucide-react";
 import { useJenkinsPro } from "./hooks/use-jenkins-pro";
 import { StatsCard, RecentActivity, QuickActions, BuildTrends } from "./components/dashboard-widgets";
 import { BuildQueue, BuildHistory, RealTimeBuildMonitor } from "./components/build-monitor";
+import { PipelineVisualization } from "./components/pipeline-visualization";
+import { AlertCenter, AlertConfiguration } from "./components/alert-notification";
 
 export default function JenkinsPro() {
 	const [activeTab, setActiveTab] = useState("dashboard");
@@ -48,7 +52,16 @@ export default function JenkinsPro() {
 		setStatusFilter,
 		triggerBuild,
 		refreshAll,
-		clearError
+		clearError,
+		// Pipeline 相关
+		pipelineFlow,
+		fetchPipelineFlow,
+		// 告警相关
+		alertRecords,
+		unreadAlerts,
+		alertConfig,
+		acknowledgeAlert,
+		updateAlertConfig
 	} = useJenkinsPro();
 
 	// 错误自动清除
@@ -113,7 +126,7 @@ export default function JenkinsPro() {
 
 				<Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 					{/* Navigation Tabs */}
-					<TabsList className="grid w-full grid-cols-4 mb-6">
+					<TabsList className="grid w-full grid-cols-6 mb-6">
 						<TabsTrigger value="dashboard" className="flex items-center gap-2">
 							<LayoutDashboard className="w-4 h-4" />
 							概览仪表板
@@ -125,6 +138,19 @@ export default function JenkinsPro() {
 						<TabsTrigger value="builds" className="flex items-center gap-2">
 							<Activity className="w-4 h-4" />
 							构建监控
+						</TabsTrigger>
+						<TabsTrigger value="pipeline" className="flex items-center gap-2">
+							<GitBranch className="w-4 h-4" />
+							Pipeline
+						</TabsTrigger>
+						<TabsTrigger value="alerts" className="flex items-center gap-2">
+							<Bell className="w-4 h-4" />
+							告警中心
+							{unreadAlerts > 0 && (
+								<span className="ml-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+									{unreadAlerts > 9 ? '9+' : unreadAlerts}
+								</span>
+							)}
 						</TabsTrigger>
 						<TabsTrigger value="system" className="flex items-center gap-2">
 							<Server className="w-4 h-4" />
@@ -157,6 +183,26 @@ export default function JenkinsPro() {
 							<RealTimeBuildMonitor activeBuilds={buildQueue.filter(b => b.status === "running")} />
 						</div>
 						<BuildHistory buildHistory={buildHistory} loading={loading.buildHistory} />
+					</TabsContent>
+
+					{/* Pipeline Tab */}
+					<TabsContent value="pipeline" className="space-y-6">
+						<PipelineView
+							pipelineFlow={pipelineFlow}
+							loading={loading.pipeline}
+							onFetchPipeline={fetchPipelineFlow}
+						/>
+					</TabsContent>
+
+					{/* Alerts Tab */}
+					<TabsContent value="alerts" className="space-y-6">
+						<AlertsView
+							alertRecords={alertRecords}
+							unreadAlerts={unreadAlerts}
+							alertConfig={alertConfig}
+							onAcknowledge={acknowledgeAlert}
+							onUpdateConfig={updateAlertConfig}
+						/>
 					</TabsContent>
 
 					{/* System Tab */}
@@ -311,6 +357,111 @@ function getJobStatus(color: string): "success" | "failed" | "running" | "unstab
 	if (color?.includes("anime")) return "running";
 	if (color?.includes("yellow")) return "unstable";
 	return "success";
+}
+
+// Pipeline View Component
+function PipelineView({
+	pipelineFlow,
+	loading,
+	onFetchPipeline
+}: {
+	pipelineFlow: any;
+	loading: boolean;
+	onFetchPipeline: (jobName: string, buildNumber: number) => void;
+}) {
+	const [selectedJob, setSelectedJob] = useState("");
+	const [selectedBuild, setSelectedBuild] = useState(1);
+
+	const handleFetchPipeline = () => {
+		if (selectedJob) {
+			onFetchPipeline(selectedJob, selectedBuild);
+		}
+	};
+
+	return (
+		<div className="space-y-6">
+			{/* Pipeline 选择器 */}
+			<Card>
+				<CardHeader>
+					<CardTitle>选择Pipeline</CardTitle>
+					<CardDescription>选择要查看的任务和构建号</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<div className="flex items-center gap-4">
+						<div className="flex-1">
+							<Input
+								placeholder="输入任务名称，如: frontend-build"
+								value={selectedJob}
+								onChange={(e) => setSelectedJob(e.target.value)}
+							/>
+						</div>
+						<div className="w-32">
+							<Input
+								type="number"
+								placeholder="构建号"
+								value={selectedBuild}
+								onChange={(e) => setSelectedBuild(parseInt(e.target.value) || 1)}
+							/>
+						</div>
+						<Button onClick={handleFetchPipeline} disabled={!selectedJob || loading}>
+							{loading ? (
+								<Loader2 className="w-4 h-4 mr-2 animate-spin" />
+							) : (
+								<GitBranch className="w-4 h-4 mr-2" />
+							)}
+							查看Pipeline
+						</Button>
+					</div>
+				</CardContent>
+			</Card>
+
+			{/* Pipeline 可视化 */}
+			<PipelineVisualization
+				pipelineFlow={pipelineFlow}
+				loading={loading}
+				onStageClick={(stage: any) => {
+					console.log("点击阶段:", stage);
+					// TODO: 显示阶段详情弹窗
+				}}
+			/>
+		</div>
+	);
+}
+
+// Alerts View Component
+function AlertsView({
+	alertRecords,
+	unreadAlerts,
+	alertConfig,
+	onAcknowledge,
+	onUpdateConfig
+}: {
+	alertRecords: any[];
+	unreadAlerts: number;
+	alertConfig: any;
+	onAcknowledge: (alertId: string) => void;
+	onUpdateConfig: (config: any) => void;
+}) {
+	return (
+		<div className="space-y-6">
+			{/* 告警中心 */}
+			<AlertCenter
+				alertRecords={alertRecords}
+				unreadAlerts={unreadAlerts}
+				onAcknowledge={onAcknowledge}
+				onClearAll={() => {
+					// TODO: 实现清空已读告警
+					console.log("清空已读告警");
+				}}
+			/>
+
+			{/* 告警配置 */}
+			<AlertConfiguration
+				alertConfig={alertConfig}
+				onUpdateConfig={onUpdateConfig}
+			/>
+		</div>
+	);
 }
 
 // 辅助函数：判断是否为iOS项目
